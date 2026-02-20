@@ -1,0 +1,33 @@
+{% extends "two_factor/_base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5 col-sm-12">
+            <div class="card shadow-lg p-4" style="border-radius: 20px;">
+                <h2 class="text-center fw-bold text-primary mb-4">TUD Paperless</h2>
+                
+                <form action="" method="post">
+                    {% csrf_token %}
+                    {{ wizard.management_form }}
+                    
+                    <div class="mb-3">
+                        {{ wizard.form.as_p }}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">
+                        {% if wizard.steps.current == 'auth' %} Next {% else %} Verify Token {% endif %}
+                    </button>
+                </form>
+
+                <div class="text-center mt-4 pt-3 border-top">
+                    <a href="{% url 'password_reset' %}" class="text-decoration-none text-muted fw-semibold">
+                        <i class="bi bi-shield-lock me-1"></i>Forgot Password?
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

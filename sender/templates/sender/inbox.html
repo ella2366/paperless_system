@@ -1,33 +1,66 @@
 {% extends 'sender/base.html' %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="fw-bold text-dark">
-        <i class="bi bi-envelope-paper me-2 text-primary"></i> Incoming for Review
-    </h2>
-    <span class="badge bg-info p-2 shadow-sm">{{ documents.count }} Pending Documents</span>
+<div class="row align-items-center mb-4 g-3">
+    <div class="col-md-4">
+        <h2 class="fw-bold text-dark mb-0">
+            <i class="bi bi-envelope-paper me-2 text-primary"></i> Review Inbox
+        </h2>
+        <span class="text-muted small">{{ documents.count }} pending requests</span>
+    </div>
+    
+    <div class="col-md-5">
+        <div class="input-group shadow-sm">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="inboxSearch" class="form-control border-start-0 ps-0" placeholder="Search title or sender...">
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <button class="btn btn-outline-secondary w-100 shadow-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="bi bi-sliders2 me-2"></i> Filter & Sort
+        </button>
+    </div>
 </div>
 
-<div class="card p-4 border-0 shadow-sm">
+<div class="card border-0 shadow-sm overflow-hidden">
     <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle mb-0" id="inboxTable">
             <thead class="table-light">
                 <tr>
-                    <th>Document Title</th>
-                    <th>Sender</th>
-                    <th>Origin Department</th>
-                    <th>Received Date</th>
-                    <th class="text-center">Action</th>
+                    <th class="ps-4">Document Title</th>
+                    <th>Sender Info</th>
+                    <th>Origin</th>
+                    <th>Date Received</th>
+                    <th class="text-center pe-4">Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for doc in documents %}
-                <tr>
-                    <td class="fw-bold text-primary">{{ doc.title }}</td>
+                <tr class="document-row" 
+                    data-gender="{{ doc.sender.profile.gender|lower }}" 
+                    data-dept="{{ doc.department.name|lower }}">
+                    
+                    <td class="ps-4">
+                        <span class="fw-bold text-primary d-block">{{ doc.title }}</span>
+                        <small class="text-muted">ID: #{{ doc.id }}</small>
+                    </td>
                     <td>
                         <div class="d-flex align-items-center">
-                            <i class="bi bi-person-circle me-2"></i>
-                            {{ doc.sender.username }}
+                            <i class="bi bi-person-circle me-2 fs-5"></i>
+                            <div>
+                                <span class="d-block mb-0 fw-semibold">{{ doc.sender.username }}</span>
+                                {# Gender Badge with Case-Insensitive Logic #}
+                                {% with gender=doc.sender.profile.gender|lower %}
+                                    {% if gender == 'male' %}
+                                        <small class="badge bg-info-subtle text-info p-0 px-1" style="font-size: 0.7rem;">Male</small>
+                                    {% elif gender == 'female' %}
+                                        <small class="badge bg-danger-subtle text-danger p-0 px-1" style="font-size: 0.7rem;">Female</small>
+                                    {% else %}
+                                        <small class="badge bg-secondary-subtle text-secondary p-0 px-1" style="font-size: 0.7rem;">{{ doc.sender.profile.gender }}</small>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
                         </div>
                     </td>
                     <td>
@@ -36,13 +69,13 @@
                         </span>
                     </td>
                     <td class="text-muted small">
-                        <i class="bi bi-calendar3 me-1"></i> {{ doc.created_at|date:"M d, Y" }} <br>
-                        <i class="bi bi-clock me-1"></i> {{ doc.created_at|date:"H:i" }}
+                        {{ doc.created_at|date:"M d, Y" }}<br>
+                        <i class="bi bi-clock small"></i> {{ doc.created_at|date:"H:i" }}
                     </td>
-                    <td class="text-center">
-                        <a href="{% url 'review_document' doc.id %}" class="btn btn-primary px-4 shadow-sm">
-                            <i class="bi bi-search me-1"></i> Review
-                        </a>
+                    <td class="text-center pe-4">
+                        <button class="btn btn-primary btn-sm px-3 rounded-pill" data-bs-toggle="modal" data-bs-target="#actionModal{{ doc.id }}">
+                            Options
+                        </button>
                     </td>
                 </tr>
                 {% empty %}
@@ -50,7 +83,6 @@
                     <td colspan="5" class="text-center py-5">
                         <i class="bi bi-mailbox2 h1 text-muted d-block mb-3"></i>
                         <p class="text-muted fw-bold">Your inbox is clear!</p>
-                        <small class="text-muted">No new documents are waiting for your signature.</small>
                     </td>
                 </tr>
                 {% endfor %}
@@ -58,4 +90,112 @@
         </table>
     </div>
 </div>
+
+{% for doc in documents %}
+<div class="modal fade" id="actionModal{{ doc.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center pb-4">
+                <div class="bg-primary-subtle rounded-circle d-inline-flex p-3 mb-3">
+                    <i class="bi bi-file-earmark-check text-primary fs-2"></i>
+                </div>
+                <h6 class="fw-bold mb-1">{{ doc.title }}</h6>
+                <p class="text-muted small mb-4">What would you like to do?</p>
+                
+                <div class="d-grid gap-2">
+                    <a href="{% url 'review_document' doc.id %}" class="btn btn-primary fw-bold">
+                        <i class="bi bi-search me-2"></i> Full Review
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                        Mark as Read
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Filter Documents</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Sender Gender</label>
+                    <select class="form-select shadow-sm" id="genderFilter">
+                        <option value="all">All Genders</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small fw-bold">Origin Department</label>
+                    <select class="form-select shadow-sm" id="deptFilter">
+                        <option value="all">All Departments</option>
+                        <option value="it">IT Department</option>
+                        <option value="hr">HR Department</option>
+                        <option value="finance">Finance</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100 fw-bold" onclick="applyFilters()" data-bs-dismiss="modal">Apply Filters</button>
+                <button class="btn btn-link w-100 btn-sm text-decoration-none mt-2 text-muted" onclick="resetFilters()">Clear Filters</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Search Functionality
+    document.getElementById('inboxSearch').addEventListener('keyup', function() {
+        const searchTerm = this.value.toLowerCase();
+        const rows = document.querySelectorAll('.document-row');
+        
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(searchTerm) ? "" : "none";
+        });
+    });
+
+    // Multi-Filter Functionality
+    function applyFilters() {
+        const selectedGender = document.getElementById('genderFilter').value;
+        const selectedDept = document.getElementById('deptFilter').value;
+        const rows = document.querySelectorAll('.document-row');
+
+        rows.forEach(row => {
+            const rowGender = row.getAttribute('data-gender'); // Handled by |lower in HTML
+            const rowDept = row.getAttribute('data-dept');     // Handled by |lower in HTML
+
+            const genderMatch = (selectedGender === 'all' || rowGender === selectedGender);
+            const deptMatch = (selectedDept === 'all' || rowDept.includes(selectedDept));
+
+            if (genderMatch && deptMatch) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    }
+
+    // Reset Functionality
+    function resetFilters() {
+        document.getElementById('genderFilter').value = 'all';
+        document.getElementById('deptFilter').value = 'all';
+        document.querySelectorAll('.document-row').forEach(row => row.style.display = "");
+    }
+</script>
+
+<style>
+    .table-hover tbody tr:hover { background-color: #f8faff; transition: 0.2s; }
+    .btn-primary { background-color: #2563eb; border: none; }
+    .btn-primary:hover { background-color: #1d4ed8; }
+    .badge { letter-spacing: 0.3px; }
+</style>
 {% endblock %}

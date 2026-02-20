@@ -15,15 +15,24 @@ ALLOWED_HOSTS = []
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_otp',
+    'django_otp.plugins.otp_static',
+    'django_otp.plugins.otp_totp',
+    'two_factor',
+    
+    
 
     # Main App
     'sender',
+      'simple_history',
+
 ]
 
 MIDDLEWARE = [
@@ -32,8 +41,13 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    
+    # DAPAT NANDITO ITO:
+    'django_otp.middleware.OTPMiddleware', 
+    
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
 ROOT_URLCONF = 'Tud_paperless_system.urls'
@@ -41,7 +55,7 @@ ROOT_URLCONF = 'Tud_paperless_system.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [], 
+        'DIRS': [os.path.join(BASE_DIR, 'templates')], # Siguraduhin na may 'templates' dito
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -52,8 +66,7 @@ TEMPLATES = [
         },
     },
 ]
-
-WSGI_APPLICATION = 'Tud_paperless_system.wsgi.application'
+ASGI_APPLICATION = 'Tud_paperless_system.asgi.application'
 
 # Database
 DATABASES = {
@@ -87,6 +100,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 LOGIN_URL = '/admin/login/'
 LOGIN_REDIRECT_URL = '/sender/'
 LOGOUT_REDIRECT_URL = '/admin/login/'
+LOGIN_URL = 'two_factor:login'
+LOGIN_REDIRECT_URL = 'dashboard'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -97,10 +112,20 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'tudellamae1@gmail.com' 
-EMAIL_HOST_PASSWORD = 'ikfzromxrgjnpwfm'
+EMAIL_HOST_PASSWORD = 'elgd yjpu tzkq vbsg'
+DEFAULT_FROM_EMAIL = 'TUD Paperless System <tudellamae1@gmail.com>'
 
 # Celery Configuration
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}

@@ -1,0 +1,34 @@
+{% extends 'sender/base.html' %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow-lg border-0 p-4">
+            <h3 class="fw-bold text-center mb-4">Create Account</h3>
+            <form method="POST">
+                {% csrf_token %}
+                {{ form.as_p }}
+                
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Position/Role</label>
+                    <select name="role" class="form-select">
+                        <option value="employee">Employee</option>
+                        <option value="head">Department Head</option>
+                        <option value="governor">Governor</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Gender</label>
+                    <select name="gender" class="form-select">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">Register</button>
+            </form>
+            <p class="text-center mt-3 small">Already have an account? <a href="{% url 'login' %}">Login here</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

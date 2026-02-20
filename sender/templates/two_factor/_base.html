@@ -1,0 +1,47 @@
+{% extends "sender/base.html" %}
+
+{% block content %}
+<div class="container d-flex align-items-center justify-content-center" style="min-height: 80vh;">
+    <div class="col-md-5">
+        <div class="card shadow-lg p-4 border-0">
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <i class="bi bi-shield-lock-fill text-primary display-4"></i>
+                    <h2 class="fw-bold mt-3">Two-Factor Authentication</h2>
+                    <p class="text-muted small">TUD Paperless Management System</p>
+                </div>
+
+                <hr class="text-muted opacity-25 mb-4">
+
+                {% block extra_media %}{% endblock %}
+                
+                <div class="two-factor-form">
+                    {% block two_factor_content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Styling for the 2FA library elements */
+    .two-factor-form input[type="text"], 
+    .two-factor-form input[type="number"],
+    .two-factor-form input[type="password"] {
+        width: 100%;
+        padding: 12px;
+        margin-top: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+    }
+    .two-factor-form button, .two-factor-form .btn {
+        width: 100%;
+        padding: 12px;
+        border-radius: 10px;
+        font-weight: 600;
+        margin-top: 10px;
+    }
+    .two-factor-form .btn-primary { background-color: #2563eb !important; border: none; }
+</style>
+{% endblock %}

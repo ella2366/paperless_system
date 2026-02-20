@@ -1,72 +1,134 @@
 {% extends 'sender/base.html' %}
 {% block content %}
+
+{% csrf_token %}
+
+<style>
+    /* Custom styles para sa Notification Dropdown */
+    .notification-dropdown { 
+        width: 320px; 
+        max-height: 400px; 
+        overflow-y: auto; 
+        border-radius: 12px; 
+        border: none;
+    }
+    .notif-item { 
+        transition: background 0.2s; 
+        border-bottom: 1px solid #f1f5f9; 
+    }
+    .notif-item:hover { 
+        background-color: #f8fafc; 
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-5">
     <div>
         <h1 class="fw-bold mb-0">Welcome Back, {{ request.user.username }}!</h1>
-        <p class="text-muted">Managing TUD Paperless Transactions</p>
+        <div class="d-flex align-items-center gap-3 mt-2">
+            {% if request.user.is_verified %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                    <i class="bi bi-shield-check me-1"></i> 2FA Secured
+                </span>
+            {% else %}
+                <a href="{% url 'two_factor:setup' %}" class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 text-decoration-none">
+                    <i class="bi bi-shield-exclamation me-1"></i> Enable 2FA Security
+                </a>
+            {% endif %}
+
+            <div class="dropdown">
+                <button class="btn btn-light position-relative rounded-circle p-2 shadow-sm" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-bell-fill text-primary fs-5"></i>
+                    {% if total_notifications > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" id="mainNotifBadge">
+                            {{ total_notifications }}
+                        </span>
+                    {% endif %}
+                </button>
+                <div class="dropdown-menu dropdown-menu-end shadow-lg notification-dropdown p-0">
+                    <div class="p-3 border-bottom bg-light">
+                        <h6 class="mb-0 fw-bold">Notifications</h6>
+                    </div>
+                    
+                    <a href="#" onclick="toggleChat()" class="dropdown-item notif-item p-3 d-flex align-items-center">
+                        <div class="bg-primary-subtle p-2 rounded-circle me-3">
+                            <i class="bi bi-chat-text text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <p class="mb-0 small fw-bold">Messenger</p>
+                            <small class="text-muted">You have {{ unread_chats }} new messages</small>
+                        </div>
+                        {% if unread_chats > 0 %}
+                            <span class="badge bg-primary rounded-pill">{{ unread_chats }}</span>
+                        {% endif %}
+                    </a>
+
+                    <a href="{% url 'inbox' %}" class="dropdown-item notif-item p-3 d-flex align-items-center">
+                        <div class="bg-warning-subtle p-2 rounded-circle me-3">
+                            <i class="bi bi-file-earmark-text text-warning"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <p class="mb-0 small fw-bold">Document Requests</p>
+                            <small class="text-muted">{{ pending_notifs }} pending for review</small>
+                        </div>
+                        {% if pending_notifs > 0 %}
+                            <span class="badge bg-warning text-dark rounded-pill">{{ pending_notifs }}</span>
+                        {% endif %}
+                    </a>
+
+                    {% if total_notifications == 0 %}
+                        <div class="p-4 text-center">
+                            <i class="bi bi-check2-circle text-success display-6 opacity-25"></i>
+                            <p class="small text-muted mt-2 mb-0">No new notifications</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
-    <a href="{% url 'upload_document' %}" class="btn btn-primary fw-bold shadow-sm">
+    <button type="button" class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
         <i class="bi bi-plus-lg me-2"></i>New Request
-    </a>
+    </button>
 </div>
 
 <div class="row g-4 mb-5">
     <div class="col-md-9">
         <div class="row g-4">
             <div class="col-md-4">
-                <div class="card p-4 border-start border-primary border-5">
+                <div class="card p-4 border-start border-primary border-5 h-100 shadow-sm">
                     <h6 class="text-uppercase text-muted small fw-bold">Incoming for Review</h6>
                     <h2 class="fw-bold mb-0">{{ received_count }}</h2>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card p-4 border-start border-success border-5">
+                <div class="card p-4 border-start border-success border-5 h-100 shadow-sm">
                     <h6 class="text-uppercase text-muted small fw-bold">Successfully Signed</h6>
                     <h2 class="fw-bold mb-0">{{ sent_count }}</h2>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card p-4 border-start border-danger border-5">
+                <div class="card p-4 border-start border-danger border-5 h-100 shadow-sm">
                     <h6 class="text-uppercase text-muted small fw-bold">For Revision (Declined)</h6>
                     <h2 class="fw-bold mb-0">{{ rejected_count }}</h2>
                 </div>
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
-        <div class="card p-3 shadow-sm h-100 d-flex flex-column align-items-center justify-content-center">
+        <div class="card p-3 shadow-sm h-100 d-flex flex-column align-items-center justify-content-center text-center">
             <h6 class="text-uppercase text-muted small fw-bold mb-3">Analytics Overview</h6>
-            <canvas id="docAnalyticsChart" style="max-height: 120px;"></canvas>
+            <canvas id="docAnalyticsChart" style="max-height: 120px; max-width: 120px;"></canvas>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const ctx = document.getElementById('docAnalyticsChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Pending', 'Signed', 'Declined'],
-            datasets: [{
-                data: [{{ received_count }}, {{ sent_count }}, {{ rejected_count }}],
-                backgroundColor: ['#2563eb', '#10b981', '#ef4444'],
-                hoverOffset: 4
-            }]
-        },
-        options: { plugins: { legend: { display: false } } }
-    });
-</script>
-
-<div class="card p-4">
+<div class="card p-4 shadow-sm">
     <h5 class="fw-bold mb-4"><i class="bi bi-clock-history me-2"></i>Recent Documents</h5>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead class="table-light">
                 <tr>
                     <th>Title</th>
-                    <th>From</th>
+                    <th>User Info</th>
                     <th>Status</th>
                     <th class="text-end">Action</th>
                 </tr>
@@ -74,215 +136,223 @@
             <tbody>
                 {% for doc in all_documents %}
                 <tr>
-                    <td><span class="fw-semibold">{{ doc.title }}</span></td>
-                    
+                    <td><span class="fw-semibold text-primary">{{ doc.title }}</span></td>
                     <td>
-                        {% if doc.sender == request.user %}
-                            To: {{ doc.receiver.username }}
-                        {% else %}
-                            From: {{ doc.sender.username }}
-                        {% endif %}
+                        <small class="text-muted">
+                            {% if doc.sender == request.user %}
+                                <i class="bi bi-arrow-up-right me-1 text-info"></i>To: {{ doc.receiver.username }}
+                            {% else %}
+                                <i class="bi bi-arrow-down-left me-1 text-warning"></i>From: {{ doc.sender.username }}
+                            {% endif %}
+                        </small>
                     </td>
-                    
                     <td>
                         {% if doc.status == 'pending' %}
                             <span class="badge bg-warning-subtle text-warning px-3 py-2 border border-warning-subtle">Pending Review</span>
                         {% elif doc.status == 'approved' %}
                             <span class="badge bg-success-subtle text-success px-3 py-2 border border-success-subtle">Approved</span>
                         {% elif doc.status == 'rejected' %}
-                            <span class="badge bg-danger-subtle text-danger px-3 py-2 border border-danger-subtle">Declined / For Revision</span>
+                            <span class="badge bg-danger-subtle text-danger px-3 py-2 border border-danger-subtle">Declined</span>
                         {% endif %}
                     </td>
-
                     <td class="text-end">
                         <div class="d-flex gap-2 justify-content-end align-items-center">
-                            <a href="{% url 'review_document' doc.id %}" class="btn btn-sm btn-outline-primary px-3 rounded-pill">
-                                View <i class="bi bi-chevron-right ms-1"></i>
-                            </a>
-                            
+                            <button type="button" class="btn btn-sm btn-outline-primary px-3 rounded-pill" 
+                                    data-bs-toggle="modal" data-bs-target="#viewModal{{ doc.id }}">
+                                View
+                            </button>
                             {% if doc.status != 'pending' %}
-                            <a href="#" class="btn btn-sm btn-outline-secondary rounded-circle archive-btn" 
-                               data-url="{% url 'archive_document' doc.id %}"
-                               style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"
-                               title="Archive">
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle shadow-sm" 
+                                    data-bs-toggle="modal" data-bs-target="#archiveModal{{ doc.id }}"
+                                    style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
                                 <i class="bi bi-archive"></i>
-                            </a>
+                            </button>
                             {% endif %}
                         </div>
                     </td>
                 </tr>
-                <div class="col-xxl-8 col-12">
-      <div class="card h-100">
-        <div class="card-header d-flex justify-content-between">
-          <div class="card-title m-0">
-            <h5 class="mb-1">Earning Report</h5>
-            <p class="card-subtitle">Yearly Earnings Overview</p>
-          </div>
-          <div class="dropdown">
-            <button class="btn btn-text-secondary rounded-pill text-body-secondary border-0 p-2 me-n1 waves-effect" type="button" id="earningReportsTabsId" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" fdprocessedid="b7up6j">
-              <i class="icon-base ti tabler-dots-vertical icon-md text-body-secondary"></i>
-            </button>
-            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="earningReportsTabsId">
-              <a class="dropdown-item waves-effect" href="javascript:void(0);">View More</a>
-              <a class="dropdown-item waves-effect" href="javascript:void(0);">Delete</a>
-            </div>
-          </div>
-        </div>
-        <div class="card-body">
-          <ul class="nav nav-tabs widget-nav-tabs pb-8 gap-4 mx-1 d-flex flex-nowrap" role="tablist">
-            <li class="nav-item" role="presentation">
-              <a href="javascript:void(0);" class="nav-link btn active d-flex flex-column align-items-center justify-content-center waves-effect" role="tab" data-bs-toggle="tab" data-bs-target="#navs-orders-id" aria-controls="navs-orders-id" aria-selected="true">
-                <div class="badge bg-label-secondary rounded p-2"><i class="icon-base ti tabler-shopping-cart icon-md"></i></div>
-                <h6 class="tab-widget-title mb-0 mt-2">Orders</h6>
-              </a>
-            </li>
-            <li class="nav-item" role="presentation">
-              <a href="javascript:void(0);" class="nav-link btn d-flex flex-column align-items-center justify-content-center waves-effect" role="tab" data-bs-toggle="tab" data-bs-target="#navs-sales-id" aria-controls="navs-sales-id" aria-selected="false" tabindex="-1">
-                <div class="badge bg-label-secondary rounded p-2"><i class="icon-base ti tabler-chart-bar-popular icon-md"></i></div>
-                <h6 class="tab-widget-title mb-0 mt-2">Sales</h6>
-              </a>
-            </li>
-            <li class="nav-item" role="presentation">
-              <a href="javascript:void(0);" class="nav-link btn d-flex flex-column align-items-center justify-content-center waves-effect" role="tab" data-bs-toggle="tab" data-bs-target="#navs-profit-id" aria-controls="navs-profit-id" aria-selected="false" tabindex="-1">
-                <div class="badge bg-label-secondary rounded p-2"><i class="icon-base ti tabler-currency-dollar icon-md"></i></div>
-                <h6 class="tab-widget-title mb-0 mt-2">Profit</h6>
-              </a>
-            </li>
-            <li class="nav-item" role="presentation">
-              <a href="javascript:void(0);" class="nav-link btn d-flex flex-column align-items-center justify-content-center waves-effect" role="tab" data-bs-toggle="tab" data-bs-target="#navs-income-id" aria-controls="navs-income-id" aria-selected="false" tabindex="-1">
-                <div class="badge bg-label-secondary rounded p-2"><i class="icon-base ti tabler-chart-pie-2 icon-md"></i></div>
-                <h6 class="tab-widget-title mb-0 mt-2">Income</h6>
-              </a>
-            </li>
-            <li class="nav-item" role="presentation">
-              <a href="javascript:void(0);" class="nav-link btn d-flex align-items-center justify-content-center disabled waves-effect" role="tab" data-bs-toggle="tab" aria-selected="false" tabindex="-1">
-                <div class="badge bg-label-secondary rounded p-2"><i class="icon-base ti tabler-plus icon-md"></i></div>
-              </a>
-            </li>
-          </ul>
-          <div class="tab-content p-0 ms-0 ms-sm-2">
-            <div class="tab-pane fade show active" id="navs-orders-id" role="tabpanel">
-              <div id="earningReportsTabsOrders" style="min-height: 231px;"><div id="apexchartsjke1jue" class="apexcharts-canvas apexchartsjke1jue apexcharts-theme-" style="width: 320px; height: 231px;"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" class="apexcharts-svg" xmlns:data="ApexChartsNS" transform="translate(0, 0)" width="320" height="231"><foreignObject x="0" y="0" width="320" height="231"><div class="apexcharts-legend" xmlns="http://www.w3.org/1999/xhtml" style="max-height: 115.5px;"></div><style type="text/css">
-      .apexcharts-flip-y {
-        transform: scaleY(-1) translateY(-100%);
-        transform-origin: top;
-        transform-box: fill-box;
-      }
-      .apexcharts-flip-x {
-        transform: scaleX(-1);
-        transform-origin: center;
-        transform-box: fill-box;
-      }
-      .apexcharts-legend {
-        display: flex;
-        overflow: auto;
-        padding: 0 10px;
-      }
-      .apexcharts-legend.apexcharts-legend-group-horizontal {
-        flex-direction: column;
-      }
-      .apexcharts-legend-group {
-        display: flex;
-      }
-      .apexcharts-legend-group-vertical {
-        flex-direction: column-reverse;
-      }
-      .apexcharts-legend.apx-legend-position-bottom, .apexcharts-legend.apx-legend-position-top {
-        flex-wrap: wrap
-      }
-      .apexcharts-legend.apx-legend-position-right, .apexcharts-legend.apx-legend-position-left {
-        flex-direction: column;
-        bottom: 0;
-      }
-      .apexcharts-legend.apx-legend-position-bottom.apexcharts-align-left, .apexcharts-legend.apx-legend-position-top.apexcharts-align-left, .apexcharts-legend.apx-legend-position-right, .apexcharts-legend.apx-legend-position-left {
-        justify-content: flex-start;
-        align-items: flex-start;
-      }
-      .apexcharts-legend.apx-legend-position-bottom.apexcharts-align-center, .apexcharts-legend.apx-legend-position-top.apexcharts-align-center {
-        justify-content: center;
-        align-items: center;
-      }
-      .apexcharts-legend.apx-legend-position-bottom.apexcharts-align-right, .apexcharts-legend.apx-legend-position-top.apexcharts-align-right {
-        justify-content: flex-end;
-        align-items: flex-end;
-      }
-      .apexcharts-legend-series {
-        cursor: pointer;
-        line-height: normal;
-        display: flex;
-        align-items: center;
-      }
-      .apexcharts-legend-text {
-        position: relative;
-        font-size: 14px;
-      }
-      .apexcharts-legend-text *, .apexcharts-legend-marker * {
-        pointer-events: none;
-      }
-      .apexcharts-legend-marker {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        margin-right: 1px;
-      }
-
-      .apexcharts-legend-series.apexcharts-no-click {
-        cursor: auto;
-      }
-      .apexcharts-legend .apexcharts-hidden-zero-series, .apexcharts-legend .apexcharts-hidden-null-series {
-        display: none !important;
-      }
-      .apexcharts-inactive-legend {
-        opacity: 0.45;
-      }
-
-    </style></foreignObject><g class="apexcharts-datalabels-group" transform="translate(0, 0) scale(1)"></g><g class="apexcharts-datalabels-group" transform="translate(0, 0) scale(1)"></g><g class="apexcharts-yaxis" rel="0" transform="translate(-8, 0)"><g class="apexcharts-yaxis-texts-g"></g></g><g class="apexcharts-inner apexcharts-graphical" transform="translate(0, 30)"><defs><linearGradient x1="0" y1="0" x2="0" y2="1" id="SvgjsLinearGradient1033"><stop stop-opacity="0.4" stop-color="rgba(216,227,240,0.4)" offset="0"></stop><stop stop-opacity="0.5" stop-color="rgba(190,209,230,0.5)" offset="1"></stop><stop stop-opacity="0.5" stop-color="rgba(190,209,230,0.5)" offset="1"></stop></linearGradient><clipPath id="gridRectMaskjke1jue"><rect width="317.4312496185303" height="162.70079907417298" x="0" y="0" rx="0" ry="0" opacity="1" stroke-width="0" stroke="none" stroke-dasharray="0" fill="#fff"></rect></clipPath><clipPath id="gridRectBarMaskjke1jue"><rect width="321.4312496185303" height="166.70079907417298" x="-2" y="-2" rx="0" ry="0" opacity="1" stroke-width="0" stroke="none" stroke-dasharray="0" fill="#fff"></rect></clipPath><clipPath id="gridRectMarkerMaskjke1jue"><rect width="317.4312496185303" height="162.70079907417298" x="0" y="0" rx="0" ry="0" opacity="1" stroke-width="0" stroke="none" stroke-dasharray="0" fill="#fff"></rect></clipPath><clipPath id="forecastMaskjke1jue"></clipPath><clipPath id="nonForecastMaskjke1jue"></clipPath></defs><rect width="0" height="162.70079907417298" x="0" y="0" rx="0" ry="0" opacity="1" stroke-width="0" stroke="#b6b6b6" stroke-dasharray="3" fill="url(#SvgjsLinearGradient1033)" class="apexcharts-xcrosshairs" y2="162.70079907417298" filter="none" fill-opacity="0.9"></rect><g class="apexcharts-grid"><g class="apexcharts-gridlines-horizontal" style="display: none;"><line x1="0" y1="0" x2="317.4312496185303" y2="0" stroke="#e0e0e0" stroke-dasharray="0" stroke-linecap="butt" class="apexcharts-gridline"></line><line x1="0" y1="32.540159814834595" x2="317.4312496185303" y2="32.540159814834595" stroke="#e0e0e0" stroke-dasharray="0" stroke-linecap="butt" class="apexcharts-gridline"></line><line x1="0" y1="65.08031962966919" x2="317.4312496185303" y2="65.08031962966919" stroke="#e0e0e0" stroke-dasharray="0" stroke-linecap="butt" class="apexcharts-gridline"></line><line x1="0" y1="97.62047944450379" x2="317.4312496185303" y2="97.62047944450379" stroke="#e0e0e0" stroke-dasharray="0" stroke-linecap="butt" class="apexcharts-gridline"></line><line x1="0" y1="130.16063925933838" x2="317.4312496185303" y2="130.16063925933838" stroke="#e0e0e0" stroke-dasharray="0" stroke-linecap="butt" class="apexcharts-gridline"></line><line x1="0" y1="162.70079907417298" x2="317.4312496185303" y2="162.70079907417298" stroke="#e0e0e0" stroke-dasharray="0" stroke-linecap="butt" class="apexcharts-gridline"></line></g><g class="apexcharts-gridlines-vertical" style="display: none;"></g><line x1="0" y1="162.70079907417298" x2="317.4312496185303" y2="162.70079907417298" stroke="transparent" stroke-dasharray="0" stroke-linecap="butt"></line><line x1="0" y1="1" x2="0" y2="162.70079907417298" stroke="transparent" stroke-dasharray="0" stroke-linecap="butt"></line></g><g class="apexcharts-grid-borders" style="display: none;"></g><g class="apexcharts-bar-series apexcharts-plot-series"><g class="apexcharts-series" rel="1" seriesName="series-1" data:realIndex="0"><path d="M 6.877677075068156 157.70179907417298 L 6.877677075068156 76.58935159263612 C 6.877677075068156 74.08935159263612 9.377677075068156 71.58935159263612 11.877677075068156 71.58935159263612 L 23.392461771435208 71.58935159263612 C 25.892461771435208 71.58935159263612 28.392461771435208 74.08935159263612 28.392461771435208 76.58935159263612 L 28.392461771435208 157.70179907417298 C 28.392461771435208 160.20179907417298 25.892461771435208 162.70179907417298 23.392461771435208 162.70179907417298 L 11.877677075068156 162.70179907417298 C 9.377677075068156 162.70179907417298 6.877677075068156 160.20179907417298 6.877677075068156 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 6.877677075068156 157.70179907417298 L 6.877677075068156 76.58935159263612 C 6.877677075068156 74.08935159263612 9.377677075068156 71.58935159263612 11.877677075068156 71.58935159263612 L 23.392461771435208 71.58935159263612 C 25.892461771435208 71.58935159263612 28.392461771435208 74.08935159263612 28.392461771435208 76.58935159263612 L 28.392461771435208 157.70179907417298 C 28.392461771435208 160.20179907417298 25.892461771435208 162.70179907417298 23.392461771435208 162.70179907417298 L 11.877677075068156 162.70179907417298 C 9.377677075068156 162.70179907417298 6.877677075068156 160.20179907417298 6.877677075068156 157.70179907417298 Z " pathFrom="M 6.877677075068156 162.70179907417298 L 6.877677075068156 162.70179907417298 L 28.392461771435208 162.70179907417298 L 28.392461771435208 162.70179907417298 L 28.392461771435208 162.70179907417298 L 28.392461771435208 162.70179907417298 L 28.392461771435208 162.70179907417298 L 6.877677075068156 162.70179907417298 Z" cy="71.58835159263612" cx="42.14781592157152" j="0" val="28" barHeight="91.11244748153686" barWidth="21.51478469636705"></path><path d="M 42.14781592157152 157.70179907417298 L 42.14781592157152 135.1616392593384 C 42.14781592157152 132.6616392593384 44.64781592157152 130.1616392593384 47.14781592157152 130.1616392593384 L 58.66260061793857 130.1616392593384 C 61.16260061793857 130.1616392593384 63.66260061793857 132.6616392593384 63.66260061793857 135.1616392593384 L 63.66260061793857 157.70179907417298 C 63.66260061793857 160.20179907417298 61.16260061793857 162.70179907417298 58.66260061793857 162.70179907417298 L 47.14781592157152 162.70179907417298 C 44.64781592157152 162.70179907417298 42.14781592157152 160.20179907417298 42.14781592157152 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 42.14781592157152 157.70179907417298 L 42.14781592157152 135.1616392593384 C 42.14781592157152 132.6616392593384 44.64781592157152 130.1616392593384 47.14781592157152 130.1616392593384 L 58.66260061793857 130.1616392593384 C 61.16260061793857 130.1616392593384 63.66260061793857 132.6616392593384 63.66260061793857 135.1616392593384 L 63.66260061793857 157.70179907417298 C 63.66260061793857 160.20179907417298 61.16260061793857 162.70179907417298 58.66260061793857 162.70179907417298 L 47.14781592157152 162.70179907417298 C 44.64781592157152 162.70179907417298 42.14781592157152 160.20179907417298 42.14781592157152 157.70179907417298 Z " pathFrom="M 42.14781592157152 162.70179907417298 L 42.14781592157152 162.70179907417298 L 63.66260061793857 162.70179907417298 L 63.66260061793857 162.70179907417298 L 63.66260061793857 162.70179907417298 L 63.66260061793857 162.70179907417298 L 63.66260061793857 162.70179907417298 L 42.14781592157152 162.70179907417298 Z" cy="130.16063925933838" cx="77.41795476807488" j="1" val="10" barHeight="32.540159814834595" barWidth="21.51478469636705"></path><path d="M 77.41795476807488 157.70179907417298 L 77.41795476807488 21.271079907417313 C 77.41795476807488 18.771079907417313 79.91795476807488 16.271079907417313 82.41795476807488 16.271079907417313 L 93.93273946444194 16.271079907417313 C 96.43273946444194 16.271079907417313 98.93273946444194 18.771079907417313 98.93273946444194 21.271079907417313 L 98.93273946444194 157.70179907417298 C 98.93273946444194 160.20179907417298 96.43273946444194 162.70179907417298 93.93273946444194 162.70179907417298 L 82.41795476807488 162.70179907417298 C 79.91795476807488 162.70179907417298 77.41795476807488 160.20179907417298 77.41795476807488 157.70179907417298 Z " fill="var(--bs-primary)" fill-opacity="1" stroke="var(--bs-primary)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 77.41795476807488 157.70179907417298 L 77.41795476807488 21.271079907417313 C 77.41795476807488 18.771079907417313 79.91795476807488 16.271079907417313 82.41795476807488 16.271079907417313 L 93.93273946444194 16.271079907417313 C 96.43273946444194 16.271079907417313 98.93273946444194 18.771079907417313 98.93273946444194 21.271079907417313 L 98.93273946444194 157.70179907417298 C 98.93273946444194 160.20179907417298 96.43273946444194 162.70179907417298 93.93273946444194 162.70179907417298 L 82.41795476807488 162.70179907417298 C 79.91795476807488 162.70179907417298 77.41795476807488 160.20179907417298 77.41795476807488 157.70179907417298 Z " pathFrom="M 77.41795476807488 162.70179907417298 L 77.41795476807488 162.70179907417298 L 98.93273946444194 162.70179907417298 L 98.93273946444194 162.70179907417298 L 98.93273946444194 162.70179907417298 L 98.93273946444194 162.70179907417298 L 98.93273946444194 162.70179907417298 L 77.41795476807488 162.70179907417298 Z" cy="16.270079907417312" cx="112.68809361457824" j="2" val="45" barHeight="146.43071916675567" barWidth="21.51478469636705"></path><path d="M 112.68809361457824 157.70179907417298 L 112.68809361457824 44.04919177780152 C 112.68809361457824 41.54919177780152 115.18809361457824 39.04919177780152 117.68809361457824 39.04919177780152 L 129.2028783109453 39.04919177780152 C 131.7028783109453 39.04919177780152 134.2028783109453 41.54919177780152 134.2028783109453 44.04919177780152 L 134.2028783109453 157.70179907417298 C 134.2028783109453 160.20179907417298 131.7028783109453 162.70179907417298 129.2028783109453 162.70179907417298 L 117.68809361457824 162.70179907417298 C 115.18809361457824 162.70179907417298 112.68809361457824 160.20179907417298 112.68809361457824 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 112.68809361457824 157.70179907417298 L 112.68809361457824 44.04919177780152 C 112.68809361457824 41.54919177780152 115.18809361457824 39.04919177780152 117.68809361457824 39.04919177780152 L 129.2028783109453 39.04919177780152 C 131.7028783109453 39.04919177780152 134.2028783109453 41.54919177780152 134.2028783109453 44.04919177780152 L 134.2028783109453 157.70179907417298 C 134.2028783109453 160.20179907417298 131.7028783109453 162.70179907417298 129.2028783109453 162.70179907417298 L 117.68809361457824 162.70179907417298 C 115.18809361457824 162.70179907417298 112.68809361457824 160.20179907417298 112.68809361457824 157.70179907417298 Z " pathFrom="M 112.68809361457824 162.70179907417298 L 112.68809361457824 162.70179907417298 L 134.2028783109453 162.70179907417298 L 134.2028783109453 162.70179907417298 L 134.2028783109453 162.70179907417298 L 134.2028783109453 162.70179907417298 L 134.2028783109453 162.70179907417298 L 112.68809361457824 162.70179907417298 Z" cy="39.04819177780152" cx="147.9582324610816" j="3" val="38" barHeight="123.65260729637146" barWidth="21.51478469636705"></path><path d="M 147.9582324610816 157.70179907417298 L 147.9582324610816 118.89155935192109 C 147.9582324610816 116.39155935192109 150.4582324610816 113.89155935192109 152.9582324610816 113.89155935192109 L 164.47301715744865 113.89155935192109 C 166.97301715744865 113.89155935192109 169.47301715744865 116.39155935192109 169.47301715744865 118.89155935192109 L 169.47301715744865 157.70179907417298 C 169.47301715744865 160.20179907417298 166.97301715744865 162.70179907417298 164.47301715744865 162.70179907417298 L 152.9582324610816 162.70179907417298 C 150.4582324610816 162.70179907417298 147.9582324610816 160.20179907417298 147.9582324610816 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 147.9582324610816 157.70179907417298 L 147.9582324610816 118.89155935192109 C 147.9582324610816 116.39155935192109 150.4582324610816 113.89155935192109 152.9582324610816 113.89155935192109 L 164.47301715744865 113.89155935192109 C 166.97301715744865 113.89155935192109 169.47301715744865 116.39155935192109 169.47301715744865 118.89155935192109 L 169.47301715744865 157.70179907417298 C 169.47301715744865 160.20179907417298 166.97301715744865 162.70179907417298 164.47301715744865 162.70179907417298 L 152.9582324610816 162.70179907417298 C 150.4582324610816 162.70179907417298 147.9582324610816 160.20179907417298 147.9582324610816 157.70179907417298 Z " pathFrom="M 147.9582324610816 162.70179907417298 L 147.9582324610816 162.70179907417298 L 169.47301715744865 162.70179907417298 L 169.47301715744865 162.70179907417298 L 169.47301715744865 162.70179907417298 L 169.47301715744865 162.70179907417298 L 169.47301715744865 162.70179907417298 L 147.9582324610816 162.70179907417298 Z" cy="113.89055935192108" cx="183.22837130758495" j="4" val="15" barHeight="48.81023972225189" barWidth="21.51478469636705"></path><path d="M 183.22837130758495 157.70179907417298 L 183.22837130758495 70.0813196296692 C 183.22837130758495 67.5813196296692 185.72837130758495 65.0813196296692 188.22837130758495 65.0813196296692 L 199.743156003952 65.0813196296692 C 202.243156003952 65.0813196296692 204.743156003952 67.5813196296692 204.743156003952 70.0813196296692 L 204.743156003952 157.70179907417298 C 204.743156003952 160.20179907417298 202.243156003952 162.70179907417298 199.743156003952 162.70179907417298 L 188.22837130758495 162.70179907417298 C 185.72837130758495 162.70179907417298 183.22837130758495 160.20179907417298 183.22837130758495 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 183.22837130758495 157.70179907417298 L 183.22837130758495 70.0813196296692 C 183.22837130758495 67.5813196296692 185.72837130758495 65.0813196296692 188.22837130758495 65.0813196296692 L 199.743156003952 65.0813196296692 C 202.243156003952 65.0813196296692 204.743156003952 67.5813196296692 204.743156003952 70.0813196296692 L 204.743156003952 157.70179907417298 C 204.743156003952 160.20179907417298 202.243156003952 162.70179907417298 199.743156003952 162.70179907417298 L 188.22837130758495 162.70179907417298 C 185.72837130758495 162.70179907417298 183.22837130758495 160.20179907417298 183.22837130758495 157.70179907417298 Z " pathFrom="M 183.22837130758495 162.70179907417298 L 183.22837130758495 162.70179907417298 L 204.743156003952 162.70179907417298 L 204.743156003952 162.70179907417298 L 204.743156003952 162.70179907417298 L 204.743156003952 162.70179907417298 L 204.743156003952 162.70179907417298 L 183.22837130758495 162.70179907417298 Z" cy="65.08031962966919" cx="218.4985101540883" j="5" val="30" barHeight="97.62047944450379" barWidth="21.51478469636705"></path><path d="M 218.4985101540883 157.70179907417298 L 218.4985101540883 53.81123972225189 C 218.4985101540883 51.31123972225189 220.9985101540883 48.81123972225189 223.4985101540883 48.81123972225189 L 235.01329485045537 48.81123972225189 C 237.51329485045537 48.81123972225189 240.01329485045537 51.31123972225189 240.01329485045537 53.81123972225189 L 240.01329485045537 157.70179907417298 C 240.01329485045537 160.20179907417298 237.51329485045537 162.70179907417298 235.01329485045537 162.70179907417298 L 223.4985101540883 162.70179907417298 C 220.9985101540883 162.70179907417298 218.4985101540883 160.20179907417298 218.4985101540883 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 218.4985101540883 157.70179907417298 L 218.4985101540883 53.81123972225189 C 218.4985101540883 51.31123972225189 220.9985101540883 48.81123972225189 223.4985101540883 48.81123972225189 L 235.01329485045537 48.81123972225189 C 237.51329485045537 48.81123972225189 240.01329485045537 51.31123972225189 240.01329485045537 53.81123972225189 L 240.01329485045537 157.70179907417298 C 240.01329485045537 160.20179907417298 237.51329485045537 162.70179907417298 235.01329485045537 162.70179907417298 L 223.4985101540883 162.70179907417298 C 220.9985101540883 162.70179907417298 218.4985101540883 160.20179907417298 218.4985101540883 157.70179907417298 Z " pathFrom="M 218.4985101540883 162.70179907417298 L 218.4985101540883 162.70179907417298 L 240.01329485045537 162.70179907417298 L 240.01329485045537 162.70179907417298 L 240.01329485045537 162.70179907417298 L 240.01329485045537 162.70179907417298 L 240.01329485045537 162.70179907417298 L 218.4985101540883 162.70179907417298 Z" cy="48.81023972225189" cx="253.76864900059167" j="6" val="35" barHeight="113.89055935192108" barWidth="21.51478469636705"></path><path d="M 253.76864900059167 157.70179907417298 L 253.76864900059167 70.0813196296692 C 253.76864900059167 67.5813196296692 256.26864900059167 65.0813196296692 258.76864900059167 65.0813196296692 L 270.2834336969587 65.0813196296692 C 272.7834336969587 65.0813196296692 275.2834336969587 67.5813196296692 275.2834336969587 70.0813196296692 L 275.2834336969587 157.70179907417298 C 275.2834336969587 160.20179907417298 272.7834336969587 162.70179907417298 270.2834336969587 162.70179907417298 L 258.76864900059167 162.70179907417298 C 256.26864900059167 162.70179907417298 253.76864900059167 160.20179907417298 253.76864900059167 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 253.76864900059167 157.70179907417298 L 253.76864900059167 70.0813196296692 C 253.76864900059167 67.5813196296692 256.26864900059167 65.0813196296692 258.76864900059167 65.0813196296692 L 270.2834336969587 65.0813196296692 C 272.7834336969587 65.0813196296692 275.2834336969587 67.5813196296692 275.2834336969587 70.0813196296692 L 275.2834336969587 157.70179907417298 C 275.2834336969587 160.20179907417298 272.7834336969587 162.70179907417298 270.2834336969587 162.70179907417298 L 258.76864900059167 162.70179907417298 C 256.26864900059167 162.70179907417298 253.76864900059167 160.20179907417298 253.76864900059167 157.70179907417298 Z " pathFrom="M 253.76864900059167 162.70179907417298 L 253.76864900059167 162.70179907417298 L 275.2834336969587 162.70179907417298 L 275.2834336969587 162.70179907417298 L 275.2834336969587 162.70179907417298 L 275.2834336969587 162.70179907417298 L 275.2834336969587 162.70179907417298 L 253.76864900059167 162.70179907417298 Z" cy="65.08031962966919" cx="289.038787847095" j="7" val="30" barHeight="97.62047944450379" barWidth="21.51478469636705"></path><path d="M 289.038787847095 157.70179907417298 L 289.038787847095 141.6696712223053 C 289.038787847095 139.1696712223053 291.538787847095 136.6696712223053 294.038787847095 136.6696712223053 L 305.55357254346205 136.6696712223053 C 308.05357254346205 136.6696712223053 310.55357254346205 139.1696712223053 310.55357254346205 141.6696712223053 L 310.55357254346205 157.70179907417298 C 310.55357254346205 160.20179907417298 308.05357254346205 162.70179907417298 305.55357254346205 162.70179907417298 L 294.038787847095 162.70179907417298 C 291.538787847095 162.70179907417298 289.038787847095 160.20179907417298 289.038787847095 157.70179907417298 Z " fill="var(--bs-primary-bg-subtle)" fill-opacity="1" stroke="var(--bs-primary-bg-subtle)" stroke-opacity="1" stroke-linecap="round" stroke-width="0" stroke-dasharray="0" class="apexcharts-bar-area undefined" index="0" clip-path="url(#gridRectBarMaskjke1jue)" pathTo="M 289.038787847095 157.70179907417298 L 289.038787847095 141.6696712223053 C 289.038787847095 139.1696712223053 291.538787847095 136.6696712223053 294.038787847095 136.6696712223053 L 305.55357254346205 136.6696712223053 C 308.05357254346205 136.6696712223053 310.55357254346205 139.1696712223053 310.55357254346205 141.6696712223053 L 310.55357254346205 157.70179907417298 C 310.55357254346205 160.20179907417298 308.05357254346205 162.70179907417298 305.55357254346205 162.70179907417298 L 294.038787847095 162.70179907417298 C 291.538787847095 162.70179907417298 289.038787847095 160.20179907417298 289.038787847095 157.70179907417298 Z " pathFrom="M 289.038787847095 162.70179907417298 L 289.038787847095 162.70179907417298 L 310.55357254346205 162.70179907417298 L 310.55357254346205 162.70179907417298 L 310.55357254346205 162.70179907417298 L 310.55357254346205 162.70179907417298 L 310.55357254346205 162.70179907417298 L 289.038787847095 162.70179907417298 Z" cy="136.6686712223053" cx="324.3089266935984" j="8" val="8" barHeight="26.032127851867674" barWidth="21.51478469636705"></path><g class="apexcharts-bar-goals-markers"><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g><g className="apexcharts-bar-goals-groups" class="apexcharts-hidden-element-shown" clip-path="url(#gridRectMarkerMaskjke1jue)"></g></g><g class="apexcharts-bar-shadows apexcharts-hidden-element-shown"></g></g><g class="apexcharts-datalabels apexcharts-hidden-element-shown" data:realIndex="0"><g class="apexcharts-data-labels" transform="rotate(0)"><text x="17.635069423251682" y="55.18835197410584" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="17.635069423251682" cy="55.18835197410584" style="font-family: Helvetica, Arial, sans-serif;">28k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="52.905208269755036" y="113.76063964080811" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="52.905208269755036" cy="113.76063964080811" style="font-family: Helvetica, Arial, sans-serif;">10k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="88.17534711625841" y="0" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="88.17534711625841" cy="0" style="font-family: Helvetica, Arial, sans-serif;">45k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="123.44548596276177" y="22.648192159271247" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="123.44548596276177" cy="22.648192159271247" style="font-family: Helvetica, Arial, sans-serif;">38k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="158.7156248092651" y="97.49055973339081" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="158.7156248092651" cy="97.49055973339081" style="font-family: Helvetica, Arial, sans-serif;">15k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="193.98576365576847" y="48.68032001113892" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="193.98576365576847" cy="48.68032001113892" style="font-family: Helvetica, Arial, sans-serif;">30k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="229.25590250227182" y="32.41024010372162" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="229.25590250227182" cy="32.41024010372162" style="font-family: Helvetica, Arial, sans-serif;">35k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="264.5260413487752" y="48.68032001113892" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="264.5260413487752" cy="48.68032001113892" style="font-family: Helvetica, Arial, sans-serif;">30k</text></g><g class="apexcharts-data-labels" transform="rotate(0)"><text x="299.79618019527857" y="120.26867160377503" text-anchor="middle" dominant-baseline="auto" font-size="12px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-heading-color)" class="apexcharts-datalabel" cx="299.79618019527857" cy="120.26867160377503" style="font-family: Helvetica, Arial, sans-serif;">8k</text></g></g></g><line x1="0" y1="0" x2="317.4312496185303" y2="0" stroke="#b6b6b6" stroke-dasharray="0" stroke-width="1" stroke-linecap="butt" class="apexcharts-ycrosshairs"></line><line x1="0" y1="0" x2="317.4312496185303" y2="0" stroke="#b6b6b6" stroke-dasharray="0" stroke-width="0" stroke-linecap="butt" class="apexcharts-ycrosshairs-hidden"></line><g class="apexcharts-xaxis" transform="translate(0, 0)"><g class="apexcharts-xaxis-texts-g" transform="translate(0, -4)"><text x="17.635069423251682" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Jan</tspan><title>Jan</title></text><text x="52.90520826975505" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Feb</tspan><title>Feb</title></text><text x="88.17534711625842" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Mar</tspan><title>Mar</title></text><text x="123.44548596276178" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Apr</tspan><title>Apr</title></text><text x="158.71562480926514" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>May</tspan><title>May</title></text><text x="193.9857636557685" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Jun</tspan><title>Jun</title></text><text x="229.25590250227185" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Jul</tspan><title>Jul</title></text><text x="264.5260413487752" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Aug</tspan><title>Aug</title></text><text x="299.79618019527857" y="190.70079907417298" text-anchor="middle" dominant-baseline="auto" font-size="13px" font-family="Helvetica, Arial, sans-serif" font-weight="400" fill="var(--bs-secondary-color)" class="apexcharts-text apexcharts-xaxis-label " style="font-family: Helvetica, Arial, sans-serif;"><tspan>Sep</tspan><title>Sep</title></text></g><line x1="0" y1="162.70079907417298" x2="317.4312496185303" y2="162.70079907417298" stroke="var(--bs-border-color)" stroke-dasharray="0" stroke-width="1" stroke-linecap="butt"></line></g><g class="apexcharts-yaxis-annotations"></g><g class="apexcharts-xaxis-annotations"></g><g class="apexcharts-point-annotations"></g></g></svg></div></div>
-            </div>
-            <div class="tab-pane fade" id="navs-sales-id" role="tabpanel">
-              <div id="earningReportsTabsSales" style="min-height: 231px;"><div id="apexchartsiqziwy7l" class="apexcharts-canvas apexchartsiqziwy7l" style="width: 0px; height: 231px;"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" class="apexcharts-svg" xmlns:data="ApexChartsNS" transform="translate(0, 0)" width="0" height="231"><foreignObject x="0" y="0" width="0" height="231"><div class="apexcharts-legend" xmlns="http://www.w3.org/1999/xhtml"></div></foreignObject><g class="apexcharts-inner apexcharts-graphical"><defs></defs></g></svg></div></div>
-            </div>
-            <div class="tab-pane fade" id="navs-profit-id" role="tabpanel">
-              <div id="earningReportsTabsProfit" style="min-height: 231px;"><div id="apexchartsxx6wl3ld" class="apexcharts-canvas apexchartsxx6wl3ld" style="width: 0px; height: 231px;"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" class="apexcharts-svg" xmlns:data="ApexChartsNS" transform="translate(0, 0)" width="0" height="231"><foreignObject x="0" y="0" width="0" height="231"><div class="apexcharts-legend" xmlns="http://www.w3.org/1999/xhtml"></div></foreignObject><g class="apexcharts-inner apexcharts-graphical"><defs></defs></g></svg></div></div>
-            </div>
-            <div class="tab-pane fade" id="navs-income-id" role="tabpanel">
-              <div id="earningReportsTabsIncome" style="min-height: 231px;"><div id="apexchartssk911ry9" class="apexcharts-canvas apexchartssk911ry9" style="width: 0px; height: 231px;"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" class="apexcharts-svg" xmlns:data="ApexChartsNS" transform="translate(0, 0)" width="0" height="231"><foreignObject x="0" y="0" width="0" height="231"><div class="apexcharts-legend" xmlns="http://www.w3.org/1999/xhtml"></div></foreignObject><g class="apexcharts-inner apexcharts-graphical"><defs></defs></g></svg></div></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
                 {% empty %}
-                <tr><td colspan="4" class="text-center py-4 text-muted">No documents found.</td></tr>
+                <tr>
+                    <td colspan="4" class="text-center py-5 text-muted">No documents found.</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-    document.querySelectorAll('.archive-btn').forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const archiveUrl = this.getAttribute('data-url');
+<button class="btn btn-primary rounded-circle shadow-lg" onclick="toggleChat()" 
+    style="position: fixed; bottom: 30px; right: 30px; width: 60px; height: 60px; z-index: 1050;">
+    <i class="bi bi-chat-dots-fill fs-4"></i>
+</button>
 
-            Swal.fire({
-                title: 'Are you sure?',
-                text: "Do you want to archive this document?",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#2563eb',
-                cancelButtonColor: '#64748b',
-                confirmButtonText: 'Yes, archive it!',
-                cancelButtonText: 'Cancel'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = archiveUrl;
-                }
-            });
-        });
+<div id="chatWindow" class="card shadow-lg border-0 d-none" 
+    style="position: fixed; bottom: 100px; right: 30px; width: 350px; height: 450px; z-index: 1050; border-radius: 15px;">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center p-3" style="border-radius: 15px 15px 0 0;">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-chat-fill me-2"></i>TUD Messenger</h6>
+        <button type="button" class="btn-close btn-close-white" onclick="toggleChat()"></button>
+    </div>
+    
+    <div class="p-2 border-bottom bg-light">
+        <select id="receiverSelect" class="form-select form-select-sm border-0 bg-light">
+            <option value="" selected disabled>Select contact...</option>
+            {% for user in all_users %}
+                <option value="{{ user.id }}">{{ user.username }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div id="chatContent" class="card-body overflow-auto p-3" style="background-color: #f8fafc; height: 250px;">
+        <div class="text-center text-muted mt-5 py-5">
+            <i class="bi bi-chat-left-dots display-4 opacity-25"></i>
+            <p class="small">Pumili ng kausap para mag-simula.</p>
+        </div>
+    </div>
+
+    <div class="card-footer bg-white border-0 p-3">
+        <form id="chatForm" class="input-group">
+            <input type="text" id="messageInput" class="form-control border-light bg-light shadow-none" placeholder="Type a message...">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-send"></i></button>
+        </form>
+    </div>
+</div>
+
+{% for doc in all_documents %}
+    <div class="modal fade" id="viewModal{{ doc.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title fw-bold">Document Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Title:</strong> {{ doc.title }}</p>
+                    <p><strong>Status:</strong> {{ doc.status|title }}</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <a href="{% url 'review_document' doc.id %}" class="btn btn-primary w-100">Open Review</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="archiveModal{{ doc.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content text-center border-0 shadow">
+                <div class="modal-body p-4">
+                    <i class="bi bi-archive-fill text-danger display-4 mb-3"></i>
+                    <h5 class="fw-bold">Archive This?</h5>
+                    <p class="text-muted small">Ang document na <strong>{{ doc.title }}</strong> ay ililipat sa archives list.</p>
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="button" class="btn btn-light flex-grow-1" data-bs-dismiss="modal">Cancel</button>
+                        <form action="{% url 'archive_document' doc.id %}" method="POST" class="flex-grow-1">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger w-100 fw-bold">Confirm</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endfor %}
+
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">New Request</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <div class="bg-primary-subtle rounded-circle p-4 d-inline-block mb-3">
+                    <i class="bi bi-cloud-arrow-up text-primary h1"></i>
+                </div>
+                <p class="text-muted">Create a new paperless transaction.</p>
+                <a href="{% url 'upload_document' %}" class="btn btn-primary fw-bold w-100 py-2 shadow-sm">Proceed to Upload</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const currentUser = "{{ request.user.username }}";
+
+    // --- Analytics Chart ---
+    const ctx = document.getElementById('docAnalyticsChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Pending', 'Signed', 'Declined'],
+            datasets: [{
+                data: [{{ received_count|default:0 }}, {{ sent_count|default:0 }}, {{ rejected_count|default:0 }}],
+                backgroundColor: ['#2563eb', '#10b981', '#ef4444'],
+                borderWidth: 0
+            }]
+        },
+        options: { cutout: '75%', plugins: { legend: { display: false } } }
     });
+
+    // --- Chat Functions ---
+    function toggleChat() {
+        document.getElementById('chatWindow').classList.toggle('d-none');
+        // Optional: Kapag binuksan ang chat, itago muna ang badge kung gusto mo
+        // document.getElementById('mainNotifBadge').style.display = 'none';
+    }
+
+    document.getElementById('chatForm').onsubmit = function(e) {
+        e.preventDefault();
+        const receiverId = document.getElementById('receiverSelect').value;
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        if (!receiverId || !message.trim()) return;
+
+        fetch('/sender/send-chat/', { // Alisin ang /sender/ prefix
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 'receiver_id': receiverId, 'message': message })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                messageInput.value = '';
+                loadMessages();
+            }
+        })
+        .catch(err => console.error('Send Error:', err));
+    };
+
+    function loadMessages() {
+        const receiverId = document.getElementById('receiverSelect').value;
+        if (!receiverId) return;
+
+       fetch(`/sender/get-messages/${receiverId}/`) // Dagdagan ng /sender/
+    .then(response => response.json())
+            .then(data => {
+                const chatContent = document.getElementById('chatContent');
+                if (data.messages) {
+                    chatContent.innerHTML = data.messages.map(msg => `
+                        <div class="mb-3 ${msg.sender === currentUser ? 'text-end' : ''}">
+                            <div class="d-inline-block p-2 px-3 rounded shadow-sm small ${msg.sender === currentUser ? 'bg-primary text-white' : 'bg-white text-dark'}" 
+                                 style="max-width: 85%; border-radius: 15px !important;">
+                                ${msg.content}
+                            </div>
+                            <div style="font-size: 10px;" class="text-muted mt-1 px-1">${msg.time}</div>
+                        </div>
+                    `).join('');
+                    chatContent.scrollTop = chatContent.scrollHeight;
+                }
+            })
+            .catch(err => console.error('Load Error:', err));
+    }
+
+    setInterval(loadMessages, 3000);
+    document.getElementById('receiverSelect').onchange = loadMessages;
 </script>
+
 {% endblock %}
